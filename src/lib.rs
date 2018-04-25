@@ -1027,6 +1027,7 @@ impl Unicorn {
         }
     }
 
+    // (Currently only supports x86 architectures. TODO: Add support for ARM.)
     /// Add a "syscall" or "sysenter" instruction hook.
     pub fn add_insn_sys_hook<F>(
         &mut self,
