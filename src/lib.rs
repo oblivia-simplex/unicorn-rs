@@ -1113,6 +1113,37 @@ impl Unicorn {
             Err(err)
         }
     }
+
+    /// Save and return the current CPU Context, which can
+    /// later be passed to restore_context to roll back changes
+    /// in the emulator.
+    /// UNSTABLE
+    pub unsafe fn context_save(&self) -> Result<Box<Context>, Error> {
+        let context = unsafe { Context::new() };
+        let p_context: *mut Context = unsafe { 
+            mem::transmute(&context) 
+        };
+        let p_p_context: *mut *mut Context = unsafe {
+            mem::transmute(&p_context) 
+        };
+        let err = unsafe { uc_context_alloc(self.handle, p_p_context) }; 
+        if err != Error::OK { return Err(err) };
+        let err = unsafe { uc_context_save(self.handle, p_context) };
+        if err != Error::OK { return Err(err) };
+        Ok(Box::new(context))
+    }
+
+    pub unsafe fn context_restore(&mut self, context: &Context) -> Result<(), Error> {
+        let p_context: *const Context = unsafe {
+            mem::transmute(&*context)
+        };
+        let err = unsafe { uc_context_restore(self.handle, p_context) };
+        if err == Error::OK {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
 }
 
 impl Drop for Unicorn {
