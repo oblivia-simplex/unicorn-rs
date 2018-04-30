@@ -286,6 +286,15 @@ pub trait Cpu {
     fn query(&self, query: Query) -> Result<usize, Error> {
         self.emu().query(query)
     }
+
+    /// Save the CPU context into an opaque struct.
+    unsafe fn context_save(&self) -> Result<*const Context, Error> {
+        self.emu().context_save()
+    }
+
+    unsafe fn context_restore(&mut self, context: *const Context) -> Result<(), Error> {
+        self.mut_emu().context_restore(context)
+    }
 }
 
 /// An ARM emulator instance.
@@ -1118,8 +1127,8 @@ impl Unicorn {
     /// later be passed to restore_context to roll back changes
     /// in the emulator.
     /// UNSTABLE
-    pub unsafe fn context_save(&self) -> Result<Box<Context>, Error> {
-        let context = unsafe { Context::new() };
+    pub unsafe fn context_save(&self) -> Result<*const Context, Error> {
+        let context: Context = mem::uninitialized();
         let p_context: *mut Context = unsafe { 
             mem::transmute(&context) 
         };
@@ -1127,17 +1136,23 @@ impl Unicorn {
             mem::transmute(&p_context) 
         };
         let err = unsafe { uc_context_alloc(self.handle, p_p_context) }; 
-        if err != Error::OK { return Err(err) };
+        if err != Error::OK { 
+            println!("Failed to allocate context.");
+            return Err(err) 
+        };
         let err = unsafe { uc_context_save(self.handle, p_context) };
-        if err != Error::OK { return Err(err) };
-        Ok(Box::new(context))
+        if err != Error::OK { 
+            println!("Failed to save context to allocated memory.");    
+            return Err(err) 
+        };
+        Ok(p_context)
     }
 
-    pub unsafe fn context_restore(&mut self, context: &Context) -> Result<(), Error> {
+    pub unsafe fn context_restore(&mut self, context: *const Context) -> Result<(), Error> {
         let p_context: *const Context = unsafe {
             mem::transmute(&*context)
         };
-        let err = unsafe { uc_context_restore(self.handle, p_context) };
+        let err = uc_context_restore(self.handle, p_context);
         if err == Error::OK {
             Ok(())
         } else {

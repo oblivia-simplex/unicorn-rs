@@ -171,7 +171,4 @@ pub enum Query {
 /// An "opaque" block of memory where the context of a
 /// Unicorn instance can be stored, for efficient rollback, etc.
 
-pub struct Context(*mut libc::c_void);
-impl Context {
-    pub unsafe fn new() -> Self { Context(unsafe{mem::uninitialized()}) }
-}
+pub enum Context {}
