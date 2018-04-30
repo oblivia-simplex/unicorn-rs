@@ -109,21 +109,21 @@ pub trait Cpu {
     }
 
     /// Write an unsigned value register.
-    fn reg_write(&mut self, reg: Self::Reg, value: u64) -> Result<(), Error> {
-        self.mut_emu().reg_write(reg.to_i32(), value)
+    fn reg_write(&self, reg: Self::Reg, value: u64) -> Result<(), Error> {
+        self.emu().reg_write(reg.to_i32(), value)
     }
 
     /// Write a signed 32-bit value to a register.
-    fn reg_write_i32(&mut self, reg: Self::Reg, value: i32) -> Result<(), Error> {
-        self.mut_emu().reg_write_i32(reg.to_i32(), value)
+    fn reg_write_i32(&self, reg: Self::Reg, value: i32) -> Result<(), Error> {
+        self.emu().reg_write_i32(reg.to_i32(), value)
     }
 
     /// Map a memory region in the emulator at the specified address.
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
-    fn mem_map(&mut self, address: u64, size: libc::size_t, perms: Protection) -> Result<(), Error> {
-        self.mut_emu().mem_map(address, size, perms)
+    fn mem_map(&self, address: u64, size: libc::size_t, perms: Protection) -> Result<(), Error> {
+        self.emu().mem_map(address, size, perms)
     }
 
     /// Map an existing memory region in the emulator at the specified address.
@@ -138,26 +138,26 @@ pub trait Cpu {
     ///
     /// `ptr` is a pointer to the provided memory region that will be used by the emulator.
     unsafe fn mem_map_ptr<T>(
-        &mut self,
+        &self,
         address: u64,
         size: libc::size_t,
         perms: Protection,
         ptr: *mut T,
     ) -> Result<(), Error> {
-        self.mut_emu().mem_map_ptr(address, size, perms, ptr)
+        self.emu().mem_map_ptr(address, size, perms, ptr)
     }
 
     /// Unmap a memory region.
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
-    fn mem_unmap(&mut self, address: u64, size: libc::size_t) -> Result<(), Error> {
-        self.mut_emu().mem_unmap(address, size)
+    fn mem_unmap(&self, address: u64, size: libc::size_t) -> Result<(), Error> {
+        self.emu().mem_unmap(address, size)
     }
 
     /// Write a range of bytes to memory at the specified address.
-    fn mem_write(&mut self, address: u64, bytes: &[u8]) -> Result<(), Error> {
-        self.mut_emu().mem_write(address, bytes)
+    fn mem_write(&self, address: u64, bytes: &[u8]) -> Result<(), Error> {
+        self.emu().mem_write(address, bytes)
     }
 
     /// Read a range of bytes from memory at the specified address.
@@ -169,8 +169,8 @@ pub trait Cpu {
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
-    fn mem_protect(&mut self, address: u64, size: usize, perms: Protection) -> Result<(), Error> {
-        self.mut_emu().mem_protect(address, size, perms)
+    fn mem_protect(&self, address: u64, size: usize, perms: Protection) -> Result<(), Error> {
+        self.emu().mem_protect(address, size, perms)
     }
 
     /// Returns a vector with the memory regions that are mapped in the emulator.
@@ -184,16 +184,16 @@ pub trait Cpu {
     /// is hit. `timeout` specifies a duration in microseconds after which the emulation is
     /// stopped (infinite execution if set to 0). `count` is the maximum number of instructions
     /// to emulate (emulate all the available instructions if set to 0).
-    fn emu_start(&mut self, begin: u64, until: u64, timeout: u64, count: usize) -> Result<(), Error> {
-        self.mut_emu().emu_start(begin, until, timeout, count)
+    fn emu_start(&self, begin: u64, until: u64, timeout: u64, count: usize) -> Result<(), Error> {
+        self.emu().emu_start(begin, until, timeout, count)
     }
 
     /// Stop the emulation.
     ///
     /// This is usually called from callback function in hooks.
     /// NOTE: For now, this will stop the execution only after the current block.
-    fn emu_stop(&mut self) -> Result<(), Error> {
-        self.mut_emu().emu_stop()
+    fn emu_stop(&self) -> Result<(), Error> {
+        self.emu().emu_stop()
     }
 
     /// Add a code hook.
@@ -285,6 +285,15 @@ pub trait Cpu {
     /// - `Query::MODE` : the current hardware mode.
     fn query(&self, query: Query) -> Result<usize, Error> {
         self.emu().query(query)
+    }
+
+    /// Save the CPU context into an opaque struct.
+    unsafe fn context_save(&self) -> Result<*const Context, Error> {
+        self.emu().context_save()
+    }
+
+    unsafe fn context_restore(&self, context: *const Context) -> Result<(), Error> {
+        self.emu().context_restore(context)
     }
 }
 
@@ -1109,6 +1118,46 @@ impl Unicorn {
         let err = unsafe { uc_query(self.handle, query, p_result) };
         if err == Error::OK {
             Ok(result)
+        } else {
+            Err(err)
+        }
+    }
+
+    /// Save and return the current CPU Context, which can
+    /// later be passed to restore_context to roll back changes
+    /// in the emulator.
+    pub unsafe fn context_save(&self) -> Result<*const Context, Error> {
+        let context: Context = mem::uninitialized();
+        let p_context: *mut Context = unsafe { 
+            mem::transmute(&context) 
+        };
+        let p_p_context: *mut *mut Context = unsafe {
+            mem::transmute(&p_context) 
+        };
+        let err = unsafe { uc_context_alloc(self.handle, p_p_context) }; 
+        if err != Error::OK { 
+            println!("Failed to allocate context.");
+            return Err(err) 
+        };
+        let err = unsafe { uc_context_save(self.handle, p_context) };
+        if err != Error::OK { 
+            println!("Failed to save context to allocated memory.");    
+            return Err(err) 
+        };
+        Ok(p_context)
+    }
+
+    /// Restore a saved context. This can be used to roll back changes in
+    /// a CPU's register state (but not memory), or to duplicate a register
+    /// state across multiple CPUs.
+    pub unsafe fn context_restore(&self, context: *const Context) 
+        -> Result<(), Error> {
+        let p_context: *const Context = unsafe {
+            mem::transmute(&*context)
+        };
+        let err = uc_context_restore(self.handle, p_context);
+        if err == Error::OK {
+            Ok(())
         } else {
             Err(err)
         }

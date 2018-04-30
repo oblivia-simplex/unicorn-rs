@@ -6,7 +6,7 @@ pub mod unicorn_const;
 
 use std::ffi::CStr;
 use std::os::raw::c_char;
-use unicorn_const::{Arch, MemRegion, Mode, Error, HookType, Query};
+use unicorn_const::{Arch, MemRegion, Mode, Error, HookType, Query, Context};
 
 #[allow(non_camel_case_types)]
 pub type uc_handle = libc::size_t;
@@ -70,6 +70,12 @@ extern "C" {
                        -> Error;
     pub fn uc_hook_del(engine: uc_handle, hook: uc_hook) -> Error;
     pub fn uc_query(engine: uc_handle, query_type: Query, result: *mut libc::size_t) -> Error;
+    
+    pub fn uc_context_alloc(engine: uc_handle, context: *mut *mut Context) -> Error;
+    pub fn uc_context_save(engine: uc_handle, context: *mut Context) -> Error;
+    pub fn uc_context_restore(engine: uc_handle, context: *const Context) -> Error;
+
+    
 }
 
 

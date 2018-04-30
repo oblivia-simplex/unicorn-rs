@@ -1,4 +1,7 @@
 #![allow(non_camel_case_types)]
+extern crate libc;
+
+use std::mem;
 
 pub const SECOND_SCALE: u64 = 1000000;
 pub const MILISECOND_SCALE: u64 = 1000;
@@ -164,3 +167,8 @@ pub enum Query {
     /// The page size used by the emulator
     PAGE_SIZE,
 }
+
+/// An "opaque" block of memory where the context of a
+/// Unicorn instance can be stored, for efficient rollback, etc.
+
+pub enum Context {}
