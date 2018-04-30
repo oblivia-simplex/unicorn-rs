@@ -1126,7 +1126,6 @@ impl Unicorn {
     /// Save and return the current CPU Context, which can
     /// later be passed to restore_context to roll back changes
     /// in the emulator.
-    /// UNSTABLE
     pub unsafe fn context_save(&self) -> Result<*const Context, Error> {
         let context: Context = mem::uninitialized();
         let p_context: *mut Context = unsafe { 
@@ -1148,7 +1147,11 @@ impl Unicorn {
         Ok(p_context)
     }
 
-    pub unsafe fn context_restore(&mut self, context: *const Context) -> Result<(), Error> {
+    /// Restore a saved context. This can be used to roll back changes in
+    /// a CPU's register state (but not memory), or to duplicate a register
+    /// state across multiple CPUs.
+    pub unsafe fn context_restore(&mut self, context: *const Context) 
+        -> Result<(), Error> {
         let p_context: *const Context = unsafe {
             mem::transmute(&*context)
         };
