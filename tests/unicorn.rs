@@ -8,7 +8,7 @@ use unicorn::{Cpu, CpuARM, CpuMIPS, CpuX86};
 fn emulate_x86() {
     let x86_code32: Vec<u8> = vec![0x41, 0x4a]; // INC ecx; DEC edx
 
-    let mut emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
+    let emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
     assert_eq!(emu.reg_write(unicorn::RegisterX86::EAX, 123), Ok(()));
     assert_eq!(emu.reg_read(unicorn::RegisterX86::EAX), Ok(123));
 
@@ -45,7 +45,7 @@ fn emulate_x86() {
 fn emulate_x86_negative_values() {
     let x86_code32: Vec<u8> = vec![0x41, 0x4a]; // INC ecx; DEC edx
 
-    let mut emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
+    let emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
 
     assert_eq!(emu.mem_map(0x1000, 0x4000, unicorn::PROT_ALL), Ok(()));
     assert_eq!(emu.mem_write(0x1000, &x86_code32), Ok(()));
@@ -86,7 +86,7 @@ fn callback_lifetime_init() -> unicorn::CpuX86 {
 #[test]
 fn test_callback_lifetime() {
     // Regression test for https://github.com/ekse/unicorn-rs/issues/13
-    let mut emu = callback_lifetime_init();
+    let emu = callback_lifetime_init();
     println!("Foobar");
     assert_eq!(
         emu.emu_start(0x1000, 0x1002, 10 * unicorn::SECOND_SCALE, 1000),
@@ -320,7 +320,7 @@ fn x86_insn_sys_callback() {
 fn emulate_arm() {
     let arm_code32: Vec<u8> = vec![0x83, 0xb0]; // sub    sp, #0xc
 
-    let mut emu = CpuARM::new(unicorn::Mode::THUMB).expect("failed to instantiate emulator");
+    let emu = CpuARM::new(unicorn::Mode::THUMB).expect("failed to instantiate emulator");
     assert_eq!(emu.reg_write(unicorn::RegisterARM::R1, 123), Ok(()));
     assert_eq!(emu.reg_read(unicorn::RegisterARM::R1), Ok(123));
 
@@ -359,7 +359,7 @@ fn emulate_arm() {
 fn emulate_mips() {
     let mips_code32 = vec![0x56, 0x34, 0x21, 0x34]; // ori $at, $at, 0x3456;
 
-    let mut emu = CpuMIPS::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
+    let emu = CpuMIPS::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
     assert_eq!(emu.mem_map(0x1000, 0x4000, unicorn::PROT_ALL), Ok(()));
     assert_eq!(emu.mem_write(0x1000, &mips_code32), Ok(()));
     assert_eq!(
@@ -381,7 +381,7 @@ fn emulate_mips() {
 
 #[test]
 fn mem_unmapping() {
-    let mut emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
+    let emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
     assert_eq!(emu.mem_map(0x1000, 0x4000, unicorn::PROT_ALL), Ok(()));
     assert_eq!(emu.mem_unmap(0x1000, 0x4000), Ok(()));
 }
@@ -392,7 +392,7 @@ fn mem_map_ptr() {
     let mut mem: [u8; 4000] = [0; 4000];
     let x86_code32: Vec<u8> = vec![0x41, 0x4a]; // INC ecx; DEC edx
 
-    let mut emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
+    let emu = CpuX86::new(unicorn::Mode::MODE_32).expect("failed to instantiate emulator");
 
     // Attempt to write to memory before mapping it.
     assert_eq!(
@@ -472,7 +472,7 @@ fn x86_context_save_and_restore () {
         let x86_code: Vec<u8> = vec![
             0x48, 0xB8, 0xEF, 0xBE, 0xAD, 0xDE, 0x00, 0x00, 0x00, 0x00, 0x0F, 0x05
         ];
-        let mut emu = CpuX86::new(mode).expect("failed to instantiate emulator");
+        let emu = CpuX86::new(mode).expect("failed to instantiate emulator");
         assert_eq!(emu.mem_map(0x1000, 0x4000, unicorn::PROT_ALL), Ok(()));
         assert_eq!(emu.mem_write(0x1000, &x86_code), Ok(()));
         let _ = emu.emu_start(0x1000,
@@ -485,7 +485,7 @@ fn x86_context_save_and_restore () {
         let context = context.unwrap();
         
         /* and create a new emulator, into which we will "restore" that context */
-        let mut emu2 = CpuX86::new(mode)
+        let emu2 = CpuX86::new(mode)
             .expect("failed to instantiate emu2");
         assert_eq!(unsafe { emu2.context_restore(context) }, Ok(()));
         for register in X86_REGISTERS.iter() {
