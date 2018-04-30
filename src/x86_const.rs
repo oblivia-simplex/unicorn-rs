@@ -253,6 +253,7 @@ pub enum InsnX86 {
     OUT = 500,
     SYSCALL = 699,
     SYSENTER = 700,
+    RET = 151,
 }
 
 #[repr(C)]
