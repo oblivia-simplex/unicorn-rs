@@ -117,11 +117,3 @@ pub enum RegisterARM {
     S31 = 110,
 }
 
-/* TODO
-#[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum InsnARM {
-
-
-}
-*/
