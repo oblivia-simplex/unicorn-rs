@@ -55,6 +55,11 @@ pub struct Context {
     context: uc_context
 }
 
+impl Context {
+    pub fn new() -> Self { Context { context: 0 } }
+    pub fn is_initialized(&self) -> bool { self.context != 0 }
+}
+
 impl Drop for Context {
     fn drop(&mut self) {
         unsafe { uc_free(self.context) };
