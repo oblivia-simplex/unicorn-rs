@@ -311,7 +311,7 @@ pub trait Cpu {
         self.emu().context_save()
     }
 
-    fn context_restore(&self, context: Context) -> Result<(), Error> {
+    fn context_restore(&self, context: &Context) -> Result<(), Error> {
         self.emu().context_restore(context)
     }
 }
@@ -1213,7 +1213,7 @@ impl Unicorn {
     /// Restore a saved context. This can be used to roll back changes in
     /// a CPU's register state (but not memory), or to duplicate a register
     /// state across multiple CPUs.
-    pub fn context_restore(&self, context: Context) -> Result<(), Error> {
+    pub fn context_restore(&self, context: &Context) -> Result<(), Error> {
         let err = unsafe {uc_context_restore(self.handle, context.context)};
         if err == Error::OK {
             Ok(())
