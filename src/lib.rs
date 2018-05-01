@@ -1098,55 +1098,6 @@ impl Unicorn {
         }
     }
 
-    /* TODO Generalize this to other architectures, perhaps by adding
-     * an enum type, or by implementing it as a trait method, abstractly,
-     * and adding a class type for instructions, the way ekse does already
-     * for registers.
-     */
-    pub fn add_x86_insn_hook<F>(
-        &mut self,
-        insn_type: InsnX86,
-        begin: u64,
-        end: u64,
-        callback: F,
-    ) -> Result<uc_hook, Error>
-    where
-        F: Fn(&Unicorn) + 'static,
-    {
-        let mut hook: uc_hook = 0;
-        let p_hook: *mut libc::size_t = &mut hook;
-
-        let user_data = Box::new(InsnSysHook {
-            unicorn: self as *mut _,
-            callback: Box::new(callback),
-        });
-        let p_user_data: *mut libc::size_t = unsafe { mem::transmute(&*user_data) };
-        let _callback: libc::size_t = insn_sys_hook_proxy as usize;
-
-        let err = unsafe {
-            uc_hook_add(
-                self.handle,
-                p_hook,
-                HookType::INSN,
-                _callback,
-                p_user_data,
-                begin,
-                end,
-                insn_type,
-            )
-        };
-
-        if err == Error::OK {
-            /* bit of a KLUDGE storing it in sys_callbacks, but it's fine for
-             * now. just note a FIXME here.
-             */
-            self.insn_sys_callbacks.insert(hook, user_data);
-            Ok(hook)
-        } else {
-            Err(err)
-        }
-    }
-
     /// Remove a hook.
     ///
     /// `hook` is the value returned by either `add_code_hook` or `add_mem_hook`.
