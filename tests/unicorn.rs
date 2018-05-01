@@ -631,7 +631,7 @@ fn x86_context_save_and_restore () {
         
         /* and create a new emulator, into which we will "restore" that context */
         let emu2 = CpuX86::new(mode).expect("failed to instantiate emu2");
-        assert_eq!(emu2.context_restore(context), Ok(()));
+        assert_eq!(emu2.context_restore(&context), Ok(()));
         for register in X86_REGISTERS.iter() {
             println!("Testing register {:?}", register);
             assert_eq!(emu2.reg_read(*register), emu.reg_read(*register));
