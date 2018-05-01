@@ -51,6 +51,7 @@ pub use ffi::unicorn_const;
 pub const BINDINGS_MAJOR: u32 = 1;
 pub const BINDINGS_MINOR: u32 = 0;
 
+#[derive(Clone,Debug)]
 pub struct Context {
     context: uc_context
 }
