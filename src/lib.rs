@@ -45,11 +45,22 @@ pub use mips_const::*;
 pub use sparc_const::*;
 pub use unicorn_const::*;
 pub use x86_const::*;
-pub use ffi::{uc_handle, uc_hook};
+pub use ffi::{uc_handle, uc_hook, uc_context};
 pub use ffi::unicorn_const;
 
 pub const BINDINGS_MAJOR: u32 = 1;
 pub const BINDINGS_MINOR: u32 = 0;
+
+pub struct Context {
+    context: uc_context
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe { uc_free(self.context) };
+    }
+}
+
 
 pub trait Register {
     fn to_i32(&self) -> i32;
@@ -288,11 +299,11 @@ pub trait Cpu {
     }
 
     /// Save the CPU context into an opaque struct.
-    unsafe fn context_save(&self) -> Result<*const Context, Error> {
+    fn context_save(&self) -> Result<Context, Error> {
         self.emu().context_save()
     }
 
-    unsafe fn context_restore(&self, context: *const Context) -> Result<(), Error> {
+    fn context_restore(&self, context: Context) -> Result<(), Error> {
         self.emu().context_restore(context)
     }
 }
@@ -1126,36 +1137,27 @@ impl Unicorn {
     /// Save and return the current CPU Context, which can
     /// later be passed to restore_context to roll back changes
     /// in the emulator.
-    pub unsafe fn context_save(&self) -> Result<*const Context, Error> {
-        let context: Context = mem::uninitialized();
-        let p_context: *mut Context = unsafe { 
-            mem::transmute(&context) 
-        };
-        let p_p_context: *mut *mut Context = unsafe {
-            mem::transmute(&p_context) 
-        };
-        let err = unsafe { uc_context_alloc(self.handle, p_p_context) }; 
-        if err != Error::OK { 
-            println!("Failed to allocate context.");
+    pub fn context_save(&self) -> Result<Context, Error> {
+        let mut context: uc_context = 0;
+        let p_context: *mut uc_context = &mut context;
+        
+        let err = unsafe { uc_context_alloc(self.handle, p_context) };
+        if err != Error::OK {
             return Err(err) 
         };
-        let err = unsafe { uc_context_save(self.handle, p_context) };
-        if err != Error::OK { 
-            println!("Failed to save context to allocated memory.");    
+        let err = unsafe { uc_context_save(self.handle, context) };
+        if err != Error::OK {   
             return Err(err) 
         };
-        Ok(p_context)
+
+        Ok(Context{context})
     }
 
     /// Restore a saved context. This can be used to roll back changes in
     /// a CPU's register state (but not memory), or to duplicate a register
     /// state across multiple CPUs.
-    pub unsafe fn context_restore(&self, context: *const Context) 
-        -> Result<(), Error> {
-        let p_context: *const Context = unsafe {
-            mem::transmute(&*context)
-        };
-        let err = uc_context_restore(self.handle, p_context);
+    pub fn context_restore(&self, context: Context) -> Result<(), Error> {
+        let err = unsafe {uc_context_restore(self.handle, context.context)};
         if err == Error::OK {
             Ok(())
         } else {
