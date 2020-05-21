@@ -33,6 +33,8 @@ macro_rules! implement_emulator {
                 &self.emu
             }
         }
+
+        unsafe impl Send for $cpu<'_> {}
     };
 }
 
