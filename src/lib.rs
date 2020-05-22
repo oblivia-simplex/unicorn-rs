@@ -35,11 +35,12 @@ mod m68k_const;
 mod mips_const;
 mod sparc_const;
 mod x86_const;
+mod special_registers;
 
 #[macro_use]
 mod macros;
 
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem};
+use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, fmt::Debug};
 
 pub use crate::{
     arm64_const::*,
@@ -48,6 +49,7 @@ pub use crate::{
     m68k_const::*,
     mips_const::*,
     sparc_const::*,
+    special_registers::*,
     x86_const::*,
 };
 
@@ -73,7 +75,7 @@ impl Drop for Context {
     }
 }
 
-pub trait Register {
+pub trait Register: Sized + Send + Sync + Copy + Debug {
     fn to_i32(&self) -> i32;
 }
 
@@ -86,6 +88,10 @@ implement_register!(RegisterX86);
 
 pub trait Cpu<'a> {
     type Reg: Register;
+
+    fn new(mode: Mode) -> Result<Self>
+    where
+        Self: Sized;
 
     fn emu(&self) -> &Unicorn<'a>;
 
@@ -100,17 +106,17 @@ pub trait Cpu<'a> {
     }
 
     /// Write a generic type to a register.
-    unsafe fn reg_write_generic<T: Sized>(&self, reg: Self::Reg, value: T) -> Result<()> {
+    unsafe fn reg_write_generic<T: Sized>(&mut self, reg: Self::Reg, value: T) -> Result<()> {
         self.emu().reg_write_generic(reg.to_i32(), value)
     }
 
     /// Write an unsigned value register.
-    fn reg_write(&self, reg: Self::Reg, value: u64) -> Result<()> {
+    fn reg_write(&mut self, reg: Self::Reg, value: u64) -> Result<()> {
         self.emu().reg_write(reg.to_i32(), value)
     }
 
     /// Write a signed 32-bit value to a register.
-    fn reg_write_i32(&self, reg: Self::Reg, value: i32) -> Result<()> {
+    fn reg_write_i32(&mut self, reg: Self::Reg, value: i32) -> Result<()> {
         self.emu().reg_write_i32(reg.to_i32(), value)
     }
 
@@ -118,7 +124,7 @@ pub trait Cpu<'a> {
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
-    fn mem_map(&self, address: u64, size: libc::size_t, perms: Protection) -> Result<()> {
+    fn mem_map(&mut self, address: u64, size: libc::size_t, perms: Protection) -> Result<()> {
         self.emu().mem_map(address, size, perms)
     }
 
@@ -134,7 +140,7 @@ pub trait Cpu<'a> {
     ///
     /// `ptr` is a pointer to the provided memory region that will be used by the emulator.
     unsafe fn mem_map_ptr<T>(
-        &self,
+        &mut self,
         address: u64,
         size: libc::size_t,
         perms: Protection,
@@ -147,12 +153,12 @@ pub trait Cpu<'a> {
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
-    fn mem_unmap(&self, address: u64, size: libc::size_t) -> Result<()> {
+    fn mem_unmap(&mut self, address: u64, size: libc::size_t) -> Result<()> {
         self.emu().mem_unmap(address, size)
     }
 
     /// Write a range of bytes to memory at the specified address.
-    fn mem_write(&self, address: u64, bytes: &[u8]) -> Result<()> {
+    fn mem_write(&mut self, address: u64, bytes: &[u8]) -> Result<()> {
         self.emu().mem_write(address, bytes)
     }
 
@@ -171,7 +177,7 @@ pub trait Cpu<'a> {
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
-    fn mem_protect(&self, address: u64, size: usize, perms: Protection) -> Result<()> {
+    fn mem_protect(&mut self, address: u64, size: usize, perms: Protection) -> Result<()> {
         self.emu().mem_protect(address, size, perms)
     }
 
@@ -186,7 +192,7 @@ pub trait Cpu<'a> {
     /// is hit. `timeout` specifies a duration in microseconds after which the emulation is
     /// stopped (infinite execution if set to 0). `count` is the maximum number of instructions
     /// to emulate (emulate all the available instructions if set to 0).
-    fn emu_start(&self, begin: u64, until: u64, timeout: u64, count: usize) -> Result<()> {
+    fn emu_start(&mut self, begin: u64, until: u64, timeout: u64, count: usize) -> Result<()> {
         self.emu().emu_start(begin, until, timeout, count)
     }
 
@@ -200,7 +206,7 @@ pub trait Cpu<'a> {
 
     /// Add a code hook.
     fn add_code_hook<F>(
-        &self,
+        &mut self,
         hook_type: CodeHookType,
         begin: u64,
         end: u64,
@@ -213,7 +219,7 @@ pub trait Cpu<'a> {
     }
 
     /// Add an interrupt hook.
-    fn add_intr_hook<F>(&self, callback: F) -> Result<uc_hook>
+    fn add_intr_hook<F>(&mut self, callback: F) -> Result<uc_hook>
     where
         F: 'a + FnMut(&Unicorn<'_>, u32),
     {
@@ -222,7 +228,7 @@ pub trait Cpu<'a> {
 
     /// Add a memory hook.
     fn add_mem_hook<F>(
-        &self,
+        &mut self,
         hook_type: MemHookType,
         begin: u64,
         end: u64,
@@ -235,7 +241,7 @@ pub trait Cpu<'a> {
     }
 
     /// Add an "in" instruction hook.
-    fn add_insn_in_hook<F>(&self, callback: F) -> Result<uc_hook>
+    fn add_insn_in_hook<F>(&mut self, callback: F) -> Result<uc_hook>
     where
         F: 'a + FnMut(&'a Unicorn<'a>, u32, usize) -> u32,
     {
@@ -243,7 +249,7 @@ pub trait Cpu<'a> {
     }
 
     /// Add an "out" instruction hook.
-    fn add_insn_out_hook<F>(&self, callback: F) -> Result<uc_hook>
+    fn add_insn_out_hook<F>(&mut self, callback: F) -> Result<uc_hook>
     where
         F: 'a + FnMut(&'a Unicorn<'a>, u32, usize, u32),
     {
@@ -252,7 +258,7 @@ pub trait Cpu<'a> {
 
     /// Add a "syscall" or "sysenter" instruction hook.
     fn add_insn_sys_hook<F>(
-        &self,
+        &mut self,
         insn_type: InsnSysX86,
         begin: u64,
         end: u64,
@@ -268,7 +274,7 @@ pub trait Cpu<'a> {
     /// Remove a hook.
     ///
     /// `hook` is the value returned by either `add_code_hook` or `add_mem_hook`.
-    fn remove_hook(&self, hook: uc_hook) -> Result<()> {
+    fn remove_hook(&mut self, hook: uc_hook) -> Result<()> {
         self.emu().remove_hook(hook)
     }
 
@@ -976,6 +982,7 @@ impl<'a> Unicorn<'a> {
         }
     }
 }
+
 
 impl Drop for Unicorn<'_> {
     fn drop(&mut self) {

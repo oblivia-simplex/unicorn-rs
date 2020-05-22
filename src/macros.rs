@@ -15,19 +15,17 @@ macro_rules! implement_emulator {
             emu: Box<Unicorn<'a>>,
         }
 
-        impl<'a> $cpu<'a> {
+        impl<'a> Cpu<'a> for $cpu<'a> {
+            type Reg = $reg;
+
             #[$emu_instance_doc]
-            pub fn new(mode: Mode) -> Result<Self> {
+            fn new(mode: Mode) -> Result<Self> {
                 let emu = Unicorn::new($arch, mode);
                 match emu {
                     Ok(x) => Ok(Self { emu: x }),
                     Err(x) => Err(x),
                 }
             }
-        }
-
-        impl<'a> Cpu<'a> for $cpu<'a> {
-            type Reg = $reg;
 
             fn emu(&self) -> &Unicorn<'a> {
                 &self.emu
@@ -44,3 +42,4 @@ macro_rules! destructure_hook {
         (unsafe { &**unicorn }, callback)
     }};
 }
+
