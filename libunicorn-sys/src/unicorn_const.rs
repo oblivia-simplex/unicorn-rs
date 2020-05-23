@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 use bitflags::bitflags;
 
-pub const SECOND_SCALE: u64 = 1000000;
+pub const SECOND_SCALE: u64 = 1_000_000;
 pub const MILISECOND_SCALE: u64 = 1000;
 
 // Architecture type
@@ -125,7 +125,7 @@ pub enum MemType {
 #[repr(i32)]
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HookType {
-    INTR = 1 << 0,               // Hook all interrupt/syscall events
+    INTR = 1,                    // Hook all interrupt/syscall events
     INSN = 1 << 1,               // Hook a particular instruction
     CODE = 1 << 2,               // Hook a range of code
     BLOCK = 1 << 3,              // Hook basic blocks
@@ -164,9 +164,9 @@ pub enum MemHookType {
     MEM_READ_INVALID = (1 << 4) | (1 << 7), /* Hook type for all events of illegal read memory access */
     MEM_WRITE_INVALID = (1 << 5) | (1 << 8), /* Hook type for all events of illegal write memory access/ */
     MEM_FETCH_INVALID = (1 << 6) | (1 << 9), /* Hook type for all events of illegal fetch memory access */
-    MEM_INVALID = 0b111111 << 4,           // Hook type for all events of illegal memory access
+    MEM_INVALID = 0b11_1111 << 4,           // Hook type for all events of illegal memory access
     MEM_VALID = 0b111 << 10,               // Hook type for all events of valid memory access
-    MEM_ALL = 0b111111111 << 4,              // Hook type for all events.
+    MEM_ALL = 0b1_1111_1111 << 4,              // Hook type for all events.
 }
 
 #[repr(C)]

@@ -55,7 +55,7 @@ pub use crate::{
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Context {
     context: uc_context,
 }
@@ -106,6 +106,8 @@ pub trait Cpu<'a> {
     }
 
     /// Write a generic type to a register.
+    /// # Safety
+    /// You're on your own, here.
     unsafe fn reg_write_generic<T: Sized>(&mut self, reg: Self::Reg, value: T) -> Result<()> {
         self.emu().reg_write_generic(reg.to_i32(), value)
     }
@@ -130,6 +132,7 @@ pub trait Cpu<'a> {
 
     /// Map an existing memory region in the emulator at the specified address.
     ///
+    /// # Safety
     /// This function is marked unsafe because it is the responsibility of the caller to
     /// ensure that `size` matches the size of the passed buffer, an invalid `size` value will
     /// likely cause a crash in unicorn.
@@ -476,6 +479,7 @@ impl<'a> Unicorn<'a> {
 
     /// Write a generic type to a register.
     ///
+    /// # Safety
     /// This is required in some special cases, such as when writing `X86Mmr` to
     /// the GDTR register in x86.
     pub unsafe fn reg_write_generic<T: Sized>(&self, regid: i32, value: T) -> Result<()> {
@@ -549,6 +553,7 @@ impl<'a> Unicorn<'a> {
 
     /// Map an existing memory region in the emulator at the specified address.
     ///
+    /// # Safety
     /// This function is marked unsafe because it is the responsibility of the caller to
     /// ensure that `size` matches the size of the passed buffer, an invalid `size` value will
     /// likely cause a crash in unicorn.
