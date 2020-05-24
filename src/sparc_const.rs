@@ -1,6 +1,6 @@
 // SPARC registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
 pub enum RegisterSPARC {
     INVALID = 0,
     F0 = 1,

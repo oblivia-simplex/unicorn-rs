@@ -1,6 +1,6 @@
 // X86 registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
 pub enum RegisterX86 {
     INVALID = 0,
     AH,

@@ -49,6 +49,7 @@ pub use crate::{
     x86_const::*,
 };
 use std::sync::{Arc, Mutex};
+use std::hash::Hash;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -72,7 +73,7 @@ impl Drop for Context {
     }
 }
 
-pub trait Register: Sized + Send + Sync + Copy + Debug {
+pub trait Register: Sized + Send + Sync + Copy + Debug + Eq + Hash {
     fn to_i32(&self) -> i32;
 }
 
@@ -308,6 +309,11 @@ pub trait Cpu<'a> {
     /// `hook` is the value returned by either `add_code_hook` or `add_mem_hook`.
     fn remove_hook(&mut self, hook: uc_hook) -> Result<()> {
         self.emu().remove_hook(hook)
+    }
+
+    /// Remove all the hooks
+    fn remove_all_hooks(&mut self) -> Result<()> {
+        self.emu().remove_all_hooks()
     }
 
     /// Return the last error code when an API function failed.
@@ -982,7 +988,7 @@ impl<'a> Unicorn<'a> {
 
     /// Remove all the hooks installed in the emulator.
     pub fn remove_all_hooks(&self) -> Result<()> {
-        macro_rules! delete {
+        macro_rules! delete_hooks {
             ($field:ident) => {
                 let mut ht = self.$field.lock().unwrap();
                 for (uc_hook, _api_hook) in ht.drain() {
@@ -993,11 +999,11 @@ impl<'a> Unicorn<'a> {
                 }
             };
         }
-        delete!(code_callbacks);
-        delete!(mem_callbacks);
-        delete!(insn_in_callbacks);
-        delete!(insn_out_callbacks);
-        delete!(insn_sys_callbacks);
+        delete_hooks!(code_callbacks);
+        delete_hooks!(mem_callbacks);
+        delete_hooks!(insn_in_callbacks);
+        delete_hooks!(insn_out_callbacks);
+        delete_hooks!(insn_sys_callbacks);
 
         Ok(())
     }
