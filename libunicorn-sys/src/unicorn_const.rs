@@ -1,12 +1,14 @@
 #![allow(non_camel_case_types)]
 use bitflags::bitflags;
+use serde::Deserialize;
+use serde::Serialize;
 
 pub const SECOND_SCALE: u64 = 1_000_000;
-pub const MILISECOND_SCALE: u64 = 1000;
+pub const MILLISECOND_SCALE: u64 = 1000;
 
 // Architecture type
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Arch {
     /// ARM architecture (including Thumb, Thumb-2)
     ARM = 1,
@@ -26,7 +28,7 @@ pub enum Arch {
 
 // Mode type
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum Mode {
     LITTLE_ENDIAN = 0, // little-endian mode (default mode)
     // MODE_ARM = 0,    // 32-bit ARM

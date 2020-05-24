@@ -703,3 +703,12 @@ fn test_special_register_methods() {
         assert_eq!(s, 0xbeef);
     }
 }
+
+#[test]
+fn test_deserialize() {
+    let mode = unicorn::Mode::MODE_32;
+    let serialized = toml::to_string(&mode).unwrap();
+    println!("{:?} serializes to {:?}", mode, serialized);
+    let deserialized: unicorn::Mode = toml::from_str(&serialized).unwrap();
+    assert_eq!(deserialized, mode);
+}

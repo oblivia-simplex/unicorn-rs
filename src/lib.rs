@@ -980,6 +980,28 @@ impl<'a> Unicorn<'a> {
         }
     }
 
+    /// Remove all the hooks installed in the emulator.
+    pub fn remove_all_hooks(&self) -> Result<()> {
+        macro_rules! delete {
+            ($field:ident) => {
+                let mut ht = self.$field.lock().unwrap();
+                for (uc_hook, _api_hook) in ht.drain() {
+                    match unsafe { uc_hook_del(self.handle, uc_hook) } as Error {
+                        Error::OK => (),
+                        error => return Err(error),
+                    }
+                }
+            };
+        }
+        delete!(code_callbacks);
+        delete!(mem_callbacks);
+        delete!(insn_in_callbacks);
+        delete!(insn_out_callbacks);
+        delete!(insn_sys_callbacks);
+
+        Ok(())
+    }
+
     /// Remove a hook.
     ///
     /// `hook` is the value returned by either `add_code_hook` or `add_mem_hook`.
