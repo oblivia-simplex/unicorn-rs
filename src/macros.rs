@@ -9,21 +9,13 @@ macro_rules! implement_register {
 }
 
 macro_rules! implement_emulator {
-    ($emu_type_doc:meta, $emu_instance_doc:meta, $cpu:ident, $arch:expr, $reg:ty, $( $special_register:ident => $register:expr $(,)?)* ) => {
+    ($emu_type_doc:meta, $emu_instance_doc:meta, $cpu:ident, $arch:expr, $reg:ty,
+    $( $special_register:ident [$( $mode:pat => $register:expr $(,)?)* ] $(,)?)* ) => {
         #[$emu_type_doc]
         pub struct $cpu<'a> {
             emu: Box<Unicorn<'a>>,
-        }
-
-        impl $cpu<'_> {
-
-            $(
-                pub fn $special_register(&self) -> <$cpu<'_> as Cpu>::Reg {
-
-                    $register
-                }
-
-            )*
+            mode: Mode,
+            arch: Arch,
         }
 
         impl<'a> Cpu<'a> for $cpu<'a> {
@@ -33,7 +25,7 @@ macro_rules! implement_emulator {
             fn new(mode: Mode) -> Result<Self> {
                 let emu = Unicorn::new($arch, mode);
                 match emu {
-                    Ok(x) => Ok(Self { emu: x }),
+                    Ok(x) => Ok(Self { emu: x, mode, arch: $arch }),
                     Err(x) => Err(x),
                 }
             }
@@ -41,6 +33,30 @@ macro_rules! implement_emulator {
             fn emu(&self) -> &Unicorn<'a> {
                 &self.emu
             }
+
+            fn emu_mut(&mut self) -> &mut Unicorn<'a> {
+                &mut self.emu
+            }
+
+            fn mode(&self) -> Mode {
+                self.mode
+            }
+
+            fn arch(&self) -> Arch {
+                self.arch
+            }
+
+            $(
+                #[allow(unreachable_patterns)]
+                fn $special_register(&self) -> <$cpu<'_> as Cpu>::Reg {
+                    match self.mode() {
+                      $(
+                          $mode => $register,
+                       )*
+                       _ => unreachable!("{} is not implemented for the {:?} architecture", stringify!($special_register), $arch)
+                    }
+                }
+            )*
         }
 
         unsafe impl Send for $cpu<'_> {}
@@ -53,4 +69,3 @@ macro_rules! destructure_hook {
         (unsafe { &**unicorn }, callback)
     }};
 }
-

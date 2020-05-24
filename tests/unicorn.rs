@@ -685,3 +685,21 @@ fn x86_context_save_and_restore() {
         }
     }
 }
+
+#[test]
+fn test_special_register_methods() {
+    for mode in vec![
+        unicorn::Mode::MODE_64,
+        unicorn::Mode::MODE_32,
+        unicorn::Mode::MODE_16,
+    ] {
+        let mut emu = CpuX86::new(mode).expect("Failed to create Cpu");
+        println!("Stack pointer: {:?}", emu.stack_pointer());
+        emu.write_stack_pointer(0xbeef)
+            .expect("Failed to write stack pointer");
+        let s = emu
+            .read_stack_pointer()
+            .expect("Failed to read stack pointer");
+        assert_eq!(s, 0xbeef);
+    }
+}

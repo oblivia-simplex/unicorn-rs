@@ -37,7 +37,7 @@ mod x86_const;
 #[macro_use]
 mod macros;
 
-use std::{collections::HashMap, marker::PhantomData, mem, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, mem};
 
 pub use crate::{
     arm64_const::*,
@@ -83,14 +83,11 @@ implement_register!(RegisterMIPS);
 implement_register!(RegisterSPARC);
 implement_register!(RegisterX86);
 
-
-macro_rules! specify_special_register_methods {
+macro_rules! define_special_register_methods {
 
     ($($register:ident -> $reg_type:ty $(,)?)*) => {
         $(
-            fn $register(&self) -> $reg_type {
-                unimplemented!("Implement in the implement_emulator declarations.")
-            }
+            fn $register(&self) -> $reg_type;
 
             paste::item! {
                 fn [<read _ $register>](&self) -> Result<u64> {
@@ -117,11 +114,15 @@ pub trait Cpu<'a> {
 
     fn emu(&self) -> &Unicorn<'a>;
 
-    specify_special_register_methods!{
-        stack_pointer -> Self::Reg,
-        program_counter -> Self::Reg,
-        accumulator -> Self::Reg,
-    }
+    fn emu_mut(&mut self) -> &mut Unicorn<'a>;
+
+    /// Returns the mode specified when the emulator was created.
+    /// Note that this will not update if the emulator changes mode
+    /// (an ARM emulator switching to Thumb mode, for instance).
+    fn mode(&self) -> Mode;
+
+    /// Returns the architecture of the emulator
+    fn arch(&self) -> Arch;
 
     /// Read an unsigned value from a register.
     fn reg_read(&self, reg: Self::Reg) -> Result<u64> {
@@ -331,8 +332,15 @@ pub trait Cpu<'a> {
         self.emu().context_save()
     }
 
-    fn context_restore(&self, context: &Context) -> Result<()> {
-        self.emu().context_restore(context)
+    fn context_restore(&mut self, context: &Context) -> Result<()> {
+        self.emu_mut().context_restore(context)
+    }
+
+    // Generic special registers need to be declared here
+    define_special_register_methods! {
+        stack_pointer -> Self::Reg,
+        program_counter -> Self::Reg,
+        frame_pointer -> Self::Reg,
     }
 }
 
@@ -342,9 +350,10 @@ implement_emulator!(
     CpuARM,
     Arch::ARM,
     RegisterARM,
-    stack_pointer => RegisterARM::SP,
-    program_counter => RegisterARM::PC,
-    accumulator => RegisterARM::R0,
+    // special registers
+    program_counter [ _ => RegisterARM::PC ],
+    stack_pointer   [ _ => RegisterARM::SP ],
+    frame_pointer   [ _ => RegisterARM::FP ],
 );
 
 implement_emulator!(
@@ -353,6 +362,10 @@ implement_emulator!(
     CpuARM64,
     Arch::ARM64,
     RegisterARM64,
+    // special registers
+    program_counter [ _ => RegisterARM64::PC ],
+    stack_pointer   [ _ => RegisterARM64::SP ],
+    frame_pointer   [ _ => RegisterARM64::FP ],
 );
 
 implement_emulator!(
@@ -361,6 +374,11 @@ implement_emulator!(
     CpuM68K,
     Arch::M68K,
     RegisterM68K,
+    // special registers
+    program_counter [ _ => RegisterM68K::PC ],
+    stack_pointer   [ _ => RegisterM68K::A7 ],
+    frame_pointer   [ ],
+
 );
 
 implement_emulator!(
@@ -369,6 +387,10 @@ implement_emulator!(
     CpuMIPS,
     Arch::MIPS,
     RegisterMIPS,
+    // special registers
+    program_counter [ _ => RegisterMIPS::PC ],
+    stack_pointer   [ _ => RegisterMIPS::SP ],
+    frame_pointer   [ _ => RegisterMIPS::FP ],
 );
 
 implement_emulator!(
@@ -377,6 +399,10 @@ implement_emulator!(
     CpuSPARC,
     Arch::SPARC,
     RegisterSPARC,
+    // special registers
+    program_counter [ _ => RegisterSPARC::PC ],
+    stack_pointer   [ _ => RegisterSPARC::SP ],
+    frame_pointer   [ _ => RegisterSPARC::FP ],
 );
 
 implement_emulator!(
@@ -386,10 +412,21 @@ implement_emulator!(
     Arch::X86,
     RegisterX86,
     // special registers
-    // TODO: handle modes
-    program_counter => RegisterX86::RIP,
-    stack_pointer => RegisterX86::RSP,
-    accumulator => RegisterX86::RAX,
+    program_counter [
+        Mode::MODE_16 => RegisterX86::IP,
+        Mode::MODE_32 => RegisterX86::EIP,
+        Mode::MODE_64 => RegisterX86::RIP,
+    ],
+    stack_pointer [
+        Mode::MODE_16 => RegisterX86::SP,
+        Mode::MODE_32 => RegisterX86::ESP,
+        Mode::MODE_64 => RegisterX86::RSP,
+    ],
+    frame_pointer [
+        Mode::MODE_16 => RegisterX86::BP,
+        Mode::MODE_32 => RegisterX86::EBP,
+        Mode::MODE_64 => RegisterX86::RBP,
+    ]
 );
 
 /// Struct to bind a unicorn instance to a callback.
@@ -747,7 +784,10 @@ impl<'a> Unicorn<'a> {
             )
         };
         if err == Error::OK {
-            self.code_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
+            self.code_callbacks
+                .lock()
+                .expect("Mutex poisoned?")
+                .insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -778,7 +818,10 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.intr_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
+            self.intr_callbacks
+                .lock()
+                .expect("Mutex poisoned?")
+                .insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -815,7 +858,10 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.mem_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
+            self.mem_callbacks
+                .lock()
+                .expect("Mutex poisoned?")
+                .insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -847,7 +893,10 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.insn_in_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
+            self.insn_in_callbacks
+                .lock()
+                .expect("Mutex poisoned?")
+                .insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -879,7 +928,10 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.insn_out_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
+            self.insn_out_callbacks
+                .lock()
+                .expect("Mutex poisoned?")
+                .insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -918,7 +970,10 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.insn_sys_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
+            self.insn_sys_callbacks
+                .lock()
+                .expect("Mutex poisoned?")
+                .insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -936,31 +991,42 @@ impl<'a> Unicorn<'a> {
         // lock is acquired and released within its own scope. Except, perhaps,
         // the first lock acquired.
         self.code_callbacks
-            .lock().expect("Mutex poisoned?")
+            .lock()
+            .expect("Mutex poisoned?")
             .remove(&hook)
             .map(drop)
             .or_else(|| {
                 self.intr_callbacks
-                    .lock().expect("Mutex poisoned?")
+                    .lock()
+                    .expect("Mutex poisoned?")
                     .remove(&hook)
                     .map(drop)
             })
-            .or_else(|| self.mem_callbacks.lock().expect("Mutex poisoned?").remove(&hook).map(drop))
+            .or_else(|| {
+                self.mem_callbacks
+                    .lock()
+                    .expect("Mutex poisoned?")
+                    .remove(&hook)
+                    .map(drop)
+            })
             .or_else(|| {
                 self.insn_in_callbacks
-                    .lock().expect("Mutex poisoned?")
+                    .lock()
+                    .expect("Mutex poisoned?")
                     .remove(&hook)
                     .map(drop)
             })
             .or_else(|| {
                 self.insn_out_callbacks
-                    .lock().expect("Mutex poisoned?")
+                    .lock()
+                    .expect("Mutex poisoned?")
                     .remove(&hook)
                     .map(drop)
             })
             .or_else(|| {
                 self.insn_sys_callbacks
-                    .lock().expect("Mutex poisoned?")
+                    .lock()
+                    .expect("Mutex poisoned?")
                     .remove(&hook)
                     .map(drop)
             });
@@ -1015,7 +1081,7 @@ impl<'a> Unicorn<'a> {
     /// Restore a saved context. This can be used to roll back changes in
     /// a CPU's register state (but not memory), or to duplicate a register
     /// state across multiple CPUs.
-    pub fn context_restore(&self, context: &Context) -> Result<()> {
+    pub fn context_restore(&mut self, context: &Context) -> Result<()> {
         let err = unsafe { uc_context_restore(self.handle, context.context) };
         if err == Error::OK {
             Ok(())
@@ -1025,10 +1091,12 @@ impl<'a> Unicorn<'a> {
     }
 }
 
-
 impl Drop for Unicorn<'_> {
     fn drop(&mut self) {
-        log::debug!("Dropping Unicorn instance at {:p}", self.handle as *const usize);
+        log::debug!(
+            "Dropping Unicorn instance at {:p}",
+            self.handle as *const usize
+        );
         unsafe { uc_close(self.handle) };
     }
 }

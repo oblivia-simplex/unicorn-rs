@@ -254,7 +254,6 @@ pub enum RegisterX86 {
     MXCSR,
 }
 
-
 #[repr(C)]
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum InsnX86 {
