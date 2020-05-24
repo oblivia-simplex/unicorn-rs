@@ -108,6 +108,24 @@ pub struct MemRegion {
     pub perms: Protection,
 }
 
+impl MemRegion {
+    pub fn size(&self) -> usize {
+        (self.end - self.begin) as usize
+    }
+
+    pub fn writeable(&self) -> bool {
+        self.perms.intersects(Protection::WRITE)
+    }
+
+    pub fn readable(&self) -> bool {
+        self.perms.intersects(Protection::READ)
+    }
+
+    pub fn executable(&self) -> bool {
+        self.perms.intersects(Protection::EXEC)
+    }
+}
+
 #[repr(C)]
 #[derive(PartialEq, Debug, Clone)]
 pub enum MemType {

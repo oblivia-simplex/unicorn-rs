@@ -9,10 +9,21 @@ macro_rules! implement_register {
 }
 
 macro_rules! implement_emulator {
-    ($emu_type_doc:meta, $emu_instance_doc:meta, $cpu:ident, $arch:expr, $reg:ty) => {
+    ($emu_type_doc:meta, $emu_instance_doc:meta, $cpu:ident, $arch:expr, $reg:ty, $( $special_register:ident => $register:expr $(,)?)* ) => {
         #[$emu_type_doc]
         pub struct $cpu<'a> {
             emu: Box<Unicorn<'a>>,
+        }
+
+        impl $cpu<'_> {
+
+            $(
+                pub fn $special_register(&self) -> <$cpu<'_> as Cpu>::Reg {
+
+                    $register
+                }
+
+            )*
         }
 
         impl<'a> Cpu<'a> for $cpu<'a> {

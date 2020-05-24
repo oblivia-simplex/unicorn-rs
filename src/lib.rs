@@ -25,8 +25,6 @@
 //! ```
 //!
 
-#![deny(rust_2018_idioms)]
-
 use libunicorn_sys as ffi;
 
 mod arm64_const;
@@ -35,12 +33,11 @@ mod m68k_const;
 mod mips_const;
 mod sparc_const;
 mod x86_const;
-mod special_registers;
 
 #[macro_use]
 mod macros;
 
-use std::{cell::RefCell, collections::HashMap, marker::PhantomData, mem, fmt::Debug};
+use std::{collections::HashMap, marker::PhantomData, mem, fmt::Debug};
 
 pub use crate::{
     arm64_const::*,
@@ -49,9 +46,9 @@ pub use crate::{
     m68k_const::*,
     mips_const::*,
     sparc_const::*,
-    special_registers::*,
     x86_const::*,
 };
+use std::sync::{Arc, Mutex};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -86,6 +83,31 @@ implement_register!(RegisterMIPS);
 implement_register!(RegisterSPARC);
 implement_register!(RegisterX86);
 
+
+macro_rules! specify_special_register_methods {
+
+    ($($register:ident -> $reg_type:ty $(,)?)*) => {
+        $(
+            fn $register(&self) -> $reg_type {
+                unimplemented!("Implement in the implement_emulator declarations.")
+            }
+
+            paste::item! {
+                fn [<read _ $register>](&self) -> Result<u64> {
+                    let r = self.$register();
+                    self.reg_read(r)
+                }
+
+                fn [<write _ $register>](&mut self, value: u64) -> Result<()> {
+                    let r = self.$register();
+                    self.reg_write(r, value)
+                }
+            }
+        )*
+    }
+
+}
+
 pub trait Cpu<'a> {
     type Reg: Register;
 
@@ -94,6 +116,12 @@ pub trait Cpu<'a> {
         Self: Sized;
 
     fn emu(&self) -> &Unicorn<'a>;
+
+    specify_special_register_methods!{
+        stack_pointer -> Self::Reg,
+        program_counter -> Self::Reg,
+        accumulator -> Self::Reg,
+    }
 
     /// Read an unsigned value from a register.
     fn reg_read(&self, reg: Self::Reg) -> Result<u64> {
@@ -313,7 +341,10 @@ implement_emulator!(
     doc = "Create an ARM emulator instance for the specified hardware mode.",
     CpuARM,
     Arch::ARM,
-    RegisterARM
+    RegisterARM,
+    stack_pointer => RegisterARM::SP,
+    program_counter => RegisterARM::PC,
+    accumulator => RegisterARM::R0,
 );
 
 implement_emulator!(
@@ -321,7 +352,7 @@ implement_emulator!(
     doc = "Create an ARM64 emulator instance for the specified hardware mode.",
     CpuARM64,
     Arch::ARM64,
-    RegisterARM64
+    RegisterARM64,
 );
 
 implement_emulator!(
@@ -329,7 +360,7 @@ implement_emulator!(
     doc = "Create a M68K emulator instance for the specified hardware mode.",
     CpuM68K,
     Arch::M68K,
-    RegisterM68K
+    RegisterM68K,
 );
 
 implement_emulator!(
@@ -337,7 +368,7 @@ implement_emulator!(
     doc = "Create an MIPS emulator instance for the specified hardware mode.",
     CpuMIPS,
     Arch::MIPS,
-    RegisterMIPS
+    RegisterMIPS,
 );
 
 implement_emulator!(
@@ -345,7 +376,7 @@ implement_emulator!(
     doc = "Create a SPARC emulator instance for the specified hardware mode.",
     CpuSPARC,
     Arch::SPARC,
-    RegisterSPARC
+    RegisterSPARC,
 );
 
 implement_emulator!(
@@ -353,7 +384,12 @@ implement_emulator!(
     doc = "Create an X86 emulator instance for the specified hardware mode.",
     CpuX86,
     Arch::X86,
-    RegisterX86
+    RegisterX86,
+    // special registers
+    // TODO: handle modes
+    program_counter => RegisterX86::RIP,
+    stack_pointer => RegisterX86::RSP,
+    accumulator => RegisterX86::RAX,
 );
 
 /// Struct to bind a unicorn instance to a callback.
@@ -418,15 +454,17 @@ type InsnInHook<'a> = UnicornHook<'a, Box<dyn 'a + FnMut(&'a Unicorn<'a>, u32, u
 type InsnOutHook<'a> = UnicornHook<'a, Box<dyn 'a + FnMut(&'a Unicorn<'a>, u32, usize, u32)>>;
 type InsnSysHook<'a> = UnicornHook<'a, Box<dyn 'a + FnMut(&'a Unicorn<'a>)>>;
 
+type SafeCell<T> = Arc<Mutex<T>>;
+
 /// Internal : A Unicorn emulator instance, use one of the Cpu structs instead.
 pub struct Unicorn<'a> {
     handle: libc::size_t, // Opaque handle to uc_engine
-    code_callbacks: RefCell<HashMap<uc_hook, Box<CodeHook<'a>>>>,
-    intr_callbacks: RefCell<HashMap<uc_hook, Box<IntrHook<'a>>>>,
-    mem_callbacks: RefCell<HashMap<uc_hook, Box<MemHook<'a>>>>,
-    insn_in_callbacks: RefCell<HashMap<uc_hook, Box<InsnInHook<'a>>>>,
-    insn_out_callbacks: RefCell<HashMap<uc_hook, Box<InsnOutHook<'a>>>>,
-    insn_sys_callbacks: RefCell<HashMap<uc_hook, Box<InsnSysHook<'a>>>>,
+    code_callbacks: SafeCell<HashMap<uc_hook, Box<CodeHook<'a>>>>,
+    intr_callbacks: SafeCell<HashMap<uc_hook, Box<IntrHook<'a>>>>,
+    mem_callbacks: SafeCell<HashMap<uc_hook, Box<MemHook<'a>>>>,
+    insn_in_callbacks: SafeCell<HashMap<uc_hook, Box<InsnInHook<'a>>>>,
+    insn_out_callbacks: SafeCell<HashMap<uc_hook, Box<InsnOutHook<'a>>>>,
+    insn_sys_callbacks: SafeCell<HashMap<uc_hook, Box<InsnSysHook<'a>>>>,
     phantom: PhantomData<&'a libc::size_t>,
 }
 
@@ -709,7 +747,7 @@ impl<'a> Unicorn<'a> {
             )
         };
         if err == Error::OK {
-            self.code_callbacks.borrow_mut().insert(hook, user_data);
+            self.code_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -740,7 +778,7 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.intr_callbacks.borrow_mut().insert(hook, user_data);
+            self.intr_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -777,7 +815,7 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.mem_callbacks.borrow_mut().insert(hook, user_data);
+            self.mem_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -809,7 +847,7 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.insn_in_callbacks.borrow_mut().insert(hook, user_data);
+            self.insn_in_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -841,7 +879,7 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.insn_out_callbacks.borrow_mut().insert(hook, user_data);
+            self.insn_out_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -880,7 +918,7 @@ impl<'a> Unicorn<'a> {
         };
 
         if err == Error::OK {
-            self.insn_sys_callbacks.borrow_mut().insert(hook, user_data);
+            self.insn_sys_callbacks.lock().expect("Mutex poisoned?").insert(hook, user_data);
             Ok(hook)
         } else {
             Err(err)
@@ -893,39 +931,38 @@ impl<'a> Unicorn<'a> {
     pub fn remove_hook(&self, hook: uc_hook) -> Result<()> {
         let err = unsafe { uc_hook_del(self.handle, hook) } as Error;
         // Check in all maps to find which one has the hook.
-        macro_rules! ignore {
-            () => {
-                |_| ()
-            };
-        };
+
+        // There doesn't appear to be a risk of a deadlock here, since each
+        // lock is acquired and released within its own scope. Except, perhaps,
+        // the first lock acquired.
         self.code_callbacks
-            .borrow_mut()
+            .lock().expect("Mutex poisoned?")
             .remove(&hook)
-            .map(ignore!())
+            .map(drop)
             .or_else(|| {
                 self.intr_callbacks
-                    .borrow_mut()
+                    .lock().expect("Mutex poisoned?")
                     .remove(&hook)
-                    .map(ignore!())
+                    .map(drop)
             })
-            .or_else(|| self.mem_callbacks.borrow_mut().remove(&hook).map(ignore!()))
+            .or_else(|| self.mem_callbacks.lock().expect("Mutex poisoned?").remove(&hook).map(drop))
             .or_else(|| {
                 self.insn_in_callbacks
-                    .borrow_mut()
+                    .lock().expect("Mutex poisoned?")
                     .remove(&hook)
-                    .map(ignore!())
+                    .map(drop)
             })
             .or_else(|| {
                 self.insn_out_callbacks
-                    .borrow_mut()
+                    .lock().expect("Mutex poisoned?")
                     .remove(&hook)
-                    .map(ignore!())
+                    .map(drop)
             })
             .or_else(|| {
                 self.insn_sys_callbacks
-                    .borrow_mut()
+                    .lock().expect("Mutex poisoned?")
                     .remove(&hook)
-                    .map(ignore!())
+                    .map(drop)
             });
 
         if err == Error::OK {
@@ -991,6 +1028,7 @@ impl<'a> Unicorn<'a> {
 
 impl Drop for Unicorn<'_> {
     fn drop(&mut self) {
+        log::debug!("Dropping Unicorn instance at {:p}", self.handle as *const usize);
         unsafe { uc_close(self.handle) };
     }
 }
