@@ -279,3 +279,9 @@ pub struct X86Mmr {
     pub limit: u32,
     pub flags: u32,
 }
+
+impl Into<i32> for RegisterX86 {
+    fn into(self) -> i32 {
+        self as i32
+    }
+}

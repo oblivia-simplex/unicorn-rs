@@ -73,7 +73,7 @@ impl Drop for Context {
     }
 }
 
-pub trait Register: Sized + Send + Sync + Copy + Debug + Eq + Hash {
+pub trait Register: Sized + Send + Sync + Copy + Debug + Eq + Hash + Into<i32>{
     fn to_i32(&self) -> i32;
 }
 
@@ -238,6 +238,11 @@ pub trait Cpu<'a> {
     }
 
     /// Add a code hook.
+    ///
+    /// The callback takes three arguments:
+    /// - a pointer to the unicorn engine
+    /// - the address of the current instruction or block
+    /// - the size of the current instruction (or block?)
     fn add_code_hook<F>(
         &mut self,
         hook_type: CodeHookType,
@@ -260,6 +265,12 @@ pub trait Cpu<'a> {
     }
 
     /// Add a memory hook.
+    ///
+    /// The callback takes four arguments:
+    /// - a pointer to the unicorn engine
+    /// - the memory address accessed
+    /// - the number of bytes written or read
+    /// - the value
     fn add_mem_hook<F>(
         &mut self,
         hook_type: MemHookType,
