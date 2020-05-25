@@ -48,7 +48,7 @@ macro_rules! implement_emulator {
 
             $(
                 #[allow(unreachable_patterns)]
-                fn $special_register(&self) -> <$cpu<'_> as Cpu>::Reg {
+                fn $special_register(&self) -> <$cpu<'_> as Cpu<'_>>::Reg {
                     match self.mode() {
                       $(
                           $mode => $register,
