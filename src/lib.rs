@@ -179,7 +179,7 @@ pub trait Cpu<'a> {
         perms: Protection,
         ptr: *mut T,
     ) -> Result<()> {
-        self.emu().mem_map_ptr(address, size, perms, ptr)
+        self.emu().mem_map_mut_ptr(address, size, perms, ptr)
     }
 
     /// Unmap a memory region.
@@ -655,7 +655,7 @@ impl<'a> Unicorn<'a> {
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
     ///
     /// `ptr` is a pointer to the provided memory region that will be used by the emulator.
-    pub unsafe fn mem_map_ptr<T>(
+    pub unsafe fn mem_map_mut_ptr<T>(
         &self,
         address: u64,
         size: libc::size_t,
@@ -670,6 +670,32 @@ impl<'a> Unicorn<'a> {
         }
     }
 
+    /// Map an existing immutable memory region in the emulator at the specified address.
+    ///
+    /// # Safety
+    /// This function is marked unsafe because it is the responsibility of the caller to
+    /// ensure that `size` matches the size of the passed buffer, an invalid `size` value will
+    /// likely cause a crash in unicorn.
+    ///
+    /// `address` must be aligned to 4kb or this will return `Error::ARG`.
+    ///
+    /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
+    ///
+    /// `ptr` is a pointer to the provided memory region that will be used by the emulator.
+    pub unsafe fn mem_map_ptr<T>(
+        &self,
+        address: u64,
+        size: libc::size_t,
+        perms: Protection,
+        ptr: *const T,
+    ) -> Result<()> {
+        let err = uc_mem_map_ptr(self.handle, address, size, perms.bits(), ptr as _);
+        if err == Error::OK {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }
     /// Unmap a memory region.
     ///
     /// `address` must be aligned to 4kb or this will return `Error::ARG`.
