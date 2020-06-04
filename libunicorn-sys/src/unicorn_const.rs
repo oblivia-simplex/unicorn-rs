@@ -51,7 +51,7 @@ pub enum Mode {
 // All type of errors encountered by Unicorn API.
 // These are values returned by uc_errno()
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
 pub enum Error {
     OK = 0,          // No error: everything was fine
     NOMEM,           // Out-Of-Memory error: uc_open(), uc_emulate()

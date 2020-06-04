@@ -1,6 +1,9 @@
+use enum_utils::FromStr;
+use serde::{Serialize, Deserialize};
+
 // SPARC registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash, Serialize, Deserialize, FromStr)]
 pub enum RegisterSPARC {
     INVALID = 0,
     F0 = 1,
@@ -92,7 +95,6 @@ pub enum RegisterSPARC {
     XCC = 87,
     PC = 88,
 }
-
 
 impl Into<i32> for RegisterSPARC {
     fn into(self) -> i32 {

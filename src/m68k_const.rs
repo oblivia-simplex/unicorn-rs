@@ -1,6 +1,9 @@
+use enum_utils::FromStr;
+use serde::{Serialize, Deserialize};
+
 // M68K registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash, Serialize, Deserialize, FromStr)]
 pub enum RegisterM68K {
     INVALID = 0,
     A0,

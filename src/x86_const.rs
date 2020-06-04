@@ -1,6 +1,9 @@
+use enum_utils::FromStr;
+use serde::{Serialize, Deserialize};
+
 // X86 registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash, Serialize, Deserialize, FromStr)]
 pub enum RegisterX86 {
     INVALID = 0,
     AH,
@@ -269,6 +272,12 @@ pub enum InsnX86 {
 pub enum InsnSysX86 {
     SYSCALL = InsnX86::SYSCALL as isize,
     SYSENTER = InsnX86::SYSENTER as isize,
+}
+
+impl Into<isize> for InsnSysX86 {
+    fn into(self) -> isize {
+        self as isize
+    }
 }
 
 #[repr(C)]

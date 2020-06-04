@@ -1,6 +1,9 @@
+use enum_utils::FromStr;
+use serde::{Serialize, Deserialize};
+
 // ARM64 registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash, Serialize, Deserialize, FromStr)]
 pub enum RegisterARM64 {
     INVALID = 0,
     FP = 1,

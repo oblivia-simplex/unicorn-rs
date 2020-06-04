@@ -27,11 +27,17 @@
 
 use libunicorn_sys as ffi;
 
+#[allow(non_camel_case_types)]
 mod arm64_const;
+#[allow(non_camel_case_types)]
 mod arm_const;
+#[allow(non_camel_case_types)]
 mod m68k_const;
+#[allow(non_camel_case_types)]
 mod mips_const;
+#[allow(non_camel_case_types)]
 mod sparc_const;
+#[allow(non_camel_case_types)]
 mod x86_const;
 
 #[macro_use]
@@ -48,8 +54,9 @@ pub use crate::{
     sparc_const::*,
     x86_const::*,
 };
-use std::sync::{Arc, Mutex};
 use std::hash::Hash;
+use std::sync::{Arc, Mutex};
+use std::str::FromStr;
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -73,7 +80,7 @@ impl Drop for Context {
     }
 }
 
-pub trait Register: Sized + Send + Sync + Copy + Debug + Eq + Hash + Into<i32>{
+pub trait Register: Sized + Send + Sync + Copy + Debug + Eq + Hash + Into<i32> {
     fn to_i32(&self) -> i32;
 }
 
@@ -106,8 +113,8 @@ macro_rules! define_special_register_methods {
 
 }
 
-pub trait Cpu<'a> {
-    type Reg: Register;
+pub trait Cpu<'a>: Send {
+    type Reg: Register + FromStr + Debug + Copy + Into<i32> + 'static;
 
     fn new(mode: Mode) -> Result<Self>
     where
@@ -180,6 +187,28 @@ pub trait Cpu<'a> {
         ptr: *mut T,
     ) -> Result<()> {
         self.emu().mem_map_mut_ptr(address, size, perms, ptr)
+    }
+
+    /// Map an existing memory region in the emulator at the specified address.
+    ///
+    /// # Safety
+    /// This function is marked unsafe because it is the responsibility of the caller to
+    /// ensure that `size` matches the size of the passed buffer, an invalid `size` value will
+    /// likely cause a crash in unicorn.
+    ///
+    /// `address` must be aligned to 4kb or this will return `Error::ARG`.
+    ///
+    /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
+    ///
+    /// `ptr` is a pointer to the provided memory region that will be used by the emulator.
+    unsafe fn mem_map_const_ptr<T>(
+        &mut self,
+        address: u64,
+        size: libc::size_t,
+        perms: Protection,
+        ptr: *const T,
+    ) -> Result<()> {
+        self.emu().mem_map_const_ptr(address, size, perms, ptr)
     }
 
     /// Unmap a memory region.
@@ -682,7 +711,7 @@ impl<'a> Unicorn<'a> {
     /// `size` must be a multiple of 4kb or this will return `Error::ARG`.
     ///
     /// `ptr` is a pointer to the provided memory region that will be used by the emulator.
-    pub unsafe fn mem_map_ptr<T>(
+    pub unsafe fn mem_map_const_ptr<T>(
         &self,
         address: u64,
         size: libc::size_t,
@@ -983,14 +1012,15 @@ impl<'a> Unicorn<'a> {
 
     // (Currently only supports x86 architectures. TODO: Add support for ARM.)
     /// Add a "syscall" or "sysenter" instruction hook.
-    pub fn add_insn_sys_hook<F>(
+    pub fn add_insn_sys_hook<T, F>(
         &self,
-        insn_type: InsnSysX86,
+        insn_type: T,
         begin: u64,
         end: u64,
         callback: F,
     ) -> Result<uc_hook>
     where
+        T: Into<isize>,
         F: 'a + FnMut(&'a Unicorn<'a>),
     {
         let mut hook: uc_hook = Default::default();
@@ -999,6 +1029,7 @@ impl<'a> Unicorn<'a> {
             callback: Box::new(callback),
         });
 
+        let insn_type: isize = insn_type.into();
         let err = unsafe {
             uc_hook_add(
                 self.handle,
@@ -1158,10 +1189,10 @@ impl<'a> Unicorn<'a> {
 
 impl Drop for Unicorn<'_> {
     fn drop(&mut self) {
-        log::debug!(
-            "Dropping Unicorn instance at {:p}",
-            self.handle as *const usize
-        );
+        // log::debug!(
+        //     "Dropping Unicorn instance at {:p}",
+        //     self.handle as *const usize
+        // );
         unsafe { uc_close(self.handle) };
     }
 }
