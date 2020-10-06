@@ -51,7 +51,7 @@ pub enum Mode {
 // All type of errors encountered by Unicorn API.
 // These are values returned by uc_errno()
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash, Serialize, Deserialize)]
 pub enum Error {
     OK = 0,          // No error: everything was fine
     NOMEM,           // Out-Of-Memory error: uc_open(), uc_emulate()
@@ -79,6 +79,7 @@ pub enum Error {
 
 bitflags! {
 #[repr(C)]
+#[derive(Serialize, Deserialize)]
 pub struct Protection : u32 {
         const NONE = 0;
         const READ = 1;
@@ -112,7 +113,7 @@ pub struct MemRegion {
 
 impl MemRegion {
     pub fn size(&self) -> usize {
-        (self.end - self.begin) as usize
+        (1 + self.end - self.begin) as usize
     }
 
     pub fn writeable(&self) -> bool {

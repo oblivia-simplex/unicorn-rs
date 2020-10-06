@@ -18,6 +18,12 @@ macro_rules! implement_emulator {
             arch: Arch,
         }
 
+        impl std::fmt::Debug for $cpu<'_> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "<{:?} Cpu, {:?} mode>", self.arch, self.mode)
+            }
+        }
+
         impl<'a> Cpu<'a> for $cpu<'a> {
             type Reg = $reg;
 

@@ -1,8 +1,9 @@
-#![allow(non_camel_case_types)]
+use enum_utils::FromStr;
+use serde::{Serialize, Deserialize};
 
 // ARM registers
 #[repr(C)]
-#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq, Hash, Serialize, Deserialize, FromStr)]
 pub enum RegisterARM {
     INVALID = 0,
     APSR = 1,

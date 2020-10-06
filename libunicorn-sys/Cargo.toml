@@ -2,7 +2,7 @@
 name = "libunicorn-sys"
 version = "0.9.0"
 edition = "2018"
-authors = ["Sébastien Duquette <ekse.0x@gmail.com>"]
+authors = ["Sébastien Duquette <ekse.0x@gmail.com>", "Lucca Fraser <lucca.fraser@gmail.com>"]
 description = "Rust bindings for the unicorn emulator"
 repository = "https://github.com/ekse/unicorn-rs"
 documentation = "http://ekse.github.io/unicorn/"
