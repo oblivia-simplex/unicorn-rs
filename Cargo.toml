@@ -1,7 +1,7 @@
 [package]
 name = "unicorn"
 version = "0.9.0"
-authors = ["Sébastien Duquette <ekse.0x@gmail.com>"]
+authors = ["Sébastien Duquette <ekse.0x@gmail.com>", "Lucca Fraser <lucca.fraser@gmail.com>"]
 documentation = "https://docs.rs/unicorn/"
 edition = "2018"
 include = [
@@ -13,7 +13,7 @@ include = [
 ]
 license = "GPL-2.0"
 readme = "README.md"
-repository = "https://github.com/ekse/unicorn-rs"
+repository = "https://github.com/oblivia-simplex/unicorn-rs"
 description = "Rust bindings for the unicorn emulator"
 
 [dependencies]
